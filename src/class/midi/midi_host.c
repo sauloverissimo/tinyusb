@@ -243,6 +243,40 @@ uint16_t midih_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_
   }
   TU_VERIFY(AUDIO_SUBCLASS_MIDI_STREAMING == desc_itf->bInterfaceSubClass, 0);
 
+#if CFG_TUH_MIDI2
+  // When the MIDI 2.0 host driver is also linked, walk every alt setting
+  // of this MIDIStreaming interface looking for an MS Class-Specific
+  // Header with bcdMSC.hi >= 0x02. A MIDI 2.0 device exposes alt 0 with
+  // bcdMSC = 0x0100 (legacy header) AND alt 1 with bcdMSC = 0x0200, so a
+  // single-header peek is insufficient. If any alt advertises MIDI 2.0,
+  // defer the whole interface to midih2_open. The legacy slot is still
+  // free at this point (daddr is set further down), so nothing to undo.
+  {
+    bool device_is_midi2 = false;
+    const uint8_t midi_itf_num = desc_itf->bInterfaceNumber;
+    const uint8_t *walk = (const uint8_t *) desc_itf;
+    while (tu_desc_in_bounds(walk, desc_end)) {
+      if (tu_desc_type(walk) == TUSB_DESC_INTERFACE) {
+        const tusb_desc_interface_t *itf = (const tusb_desc_interface_t *) walk;
+        if (itf->bInterfaceNumber != midi_itf_num ||
+            itf->bInterfaceClass != TUSB_CLASS_AUDIO ||
+            itf->bInterfaceSubClass != AUDIO_SUBCLASS_MIDI_STREAMING) {
+          break;  // left our MIDIStreaming interface group
+        }
+      } else if (tu_desc_type(walk) == TUSB_DESC_CS_INTERFACE &&
+                 walk[2] == MIDI_CS_INTERFACE_HEADER &&
+                 walk[4] >= 0x02) {
+        device_is_midi2 = true;
+        break;
+      }
+      walk = tu_desc_next(walk);
+    }
+    if (device_is_midi2) {
+      return 0;  // defer to midih2_open
+    }
+  }
+#endif
+
   TU_LOG_DRV("MIDI opening Interface %u (addr = %u)\r\n", desc_itf->bInterfaceNumber, dev_addr);
   p_midi->bInterfaceNumber = desc_itf->bInterfaceNumber;
   p_midi->iInterface = desc_itf->iInterface;

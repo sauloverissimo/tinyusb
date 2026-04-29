@@ -425,6 +425,41 @@ uint16_t midih2_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
 
   TU_VERIFY(AUDIO_SUBCLASS_MIDI_STREAMING == desc_itf->bInterfaceSubClass, 0);
 
+#if !CFG_TUH_MIDI2_LEGACY_FALLBACK
+  // Strict mode: only claim devices that advertise MIDI 2.0 in any of
+  // their MIDIStreaming alt settings (alt 0 carries bcdMSC = 0x0100 even
+  // on MIDI 2.0 devices, so the alt 0 header alone is insufficient).
+  // Walk every alt of this interface looking for bcdMSC.hi >= 0x02. The
+  // walk only runs on the alt 0 entry to avoid redoing it on alt 1.
+  if (desc_itf->bAlternateSetting == 0) {
+    bool device_is_midi2 = false;
+    const uint8_t midi_itf_num = desc_itf->bInterfaceNumber;
+    const uint8_t *walk = (const uint8_t *) desc_itf;
+    while (tu_desc_in_bounds(walk, desc_end)) {
+      if (tu_desc_type(walk) == TUSB_DESC_INTERFACE) {
+        const tusb_desc_interface_t *itf = (const tusb_desc_interface_t *) walk;
+        if (itf->bInterfaceNumber != midi_itf_num ||
+            itf->bInterfaceClass != TUSB_CLASS_AUDIO ||
+            itf->bInterfaceSubClass != AUDIO_SUBCLASS_MIDI_STREAMING) {
+          break;
+        }
+      } else if (tu_desc_type(walk) == TUSB_DESC_CS_INTERFACE &&
+                 walk[2] == MIDI_CS_INTERFACE_HEADER &&
+                 walk[4] >= 0x02) {
+        device_is_midi2 = true;
+        break;
+      }
+      walk = tu_desc_next(walk);
+    }
+    if (!device_is_midi2) {
+      // MIDI 1.0 only → release slot (find_new_midi2_index keys on daddr
+      // == 0) and let the legacy midih_open claim it.
+      p_midi->daddr = 0;
+      return 0;
+    }
+  }
+#endif
+
   TU_LOG_DRV("MIDI2 opening Interface %u Alt %u (addr = %u)\r\n",
              desc_itf->bInterfaceNumber, desc_itf->bAlternateSetting, dev_addr);
 

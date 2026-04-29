@@ -35,6 +35,22 @@ extern "C" {
 #endif
 
 //--------------------------------------------------------------------+
+// Class Driver Configuration
+//--------------------------------------------------------------------+
+
+// Coexistence with the legacy MIDI 1.0 host driver (CFG_TUH_MIDI):
+// - When 1, midih2_open also claims MIDI 1.0 devices (alt = 0 byte stream),
+//   so a single driver covers every USB-MIDI device on the bus.
+// - When 0, midih2_open defers MIDI 1.0 devices (returns 0 from open) so
+//   the legacy midih_open can claim them; each protocol fires its own
+//   tuh_midi_* / tuh_midi2_* callbacks.
+// Default auto-derives from CFG_TUH_MIDI: legacy off => fallback on,
+// legacy on => fallback off (drivers stay disjoint by bcdMSC).
+#ifndef CFG_TUH_MIDI2_LEGACY_FALLBACK
+  #define CFG_TUH_MIDI2_LEGACY_FALLBACK (CFG_TUH_MIDI ? 0 : 1)
+#endif
+
+//--------------------------------------------------------------------+
 // Callback Type Definitions
 //--------------------------------------------------------------------+
 
