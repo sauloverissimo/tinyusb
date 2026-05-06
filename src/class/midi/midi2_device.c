@@ -385,6 +385,13 @@ static void _nego_handle_stream_msg(midi2d_interface_t* p_midi, const uint32_t* 
 }
 
 static void _nego_process_rx(midi2d_interface_t* p_midi) {
+#if CFG_TUD_MIDI2_USER_RESPONDER
+  // Local patch (esp32-p4-devkit-bridge-midi2): user responder owns
+  // Stream Discovery. MT 0xF messages stay in the RX FIFO and surface
+  // through tud_midi2_n_ump_read so the app's m2device dispatcher can
+  // fire onEndpointDiscovery / onFbDiscovery.
+  (void)p_midi;
+#else
   tu_edpt_stream_t* ep_rx = &p_midi->ep_stream.rx;
   uint8_t word_bytes[4];
 
@@ -402,6 +409,7 @@ static void _nego_process_rx(midi2d_interface_t* p_midi) {
     tu_edpt_stream_read(ep_rx, buf, pkt_bytes);
     _nego_handle_stream_msg(p_midi, buf);
   }
+#endif
 }
 
 //--------------------------------------------------------------------+
