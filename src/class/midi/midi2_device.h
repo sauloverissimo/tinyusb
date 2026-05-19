@@ -86,6 +86,10 @@ extern "C" {
   #define CFG_TUD_MIDI2_BLOCK_STRIDX 0
 #endif
 
+#ifndef CFG_TUD_MIDI2_USER_RESPONDER
+  #define CFG_TUD_MIDI2_USER_RESPONDER 0
+#endif
+
 //--------------------------------------------------------------------+
 // MIDI Protocol Values (returned by tud_midi2_n_protocol)
 //--------------------------------------------------------------------+

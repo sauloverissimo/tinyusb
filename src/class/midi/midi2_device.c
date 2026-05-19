@@ -270,6 +270,7 @@ static uint32_t _tx_ump_write(midi2d_interface_t* p_midi, const uint32_t* words,
 //--------------------------------------------------------------------+
 // Protocol Negotiation
 //--------------------------------------------------------------------+
+#if !CFG_TUD_MIDI2_USER_RESPONDER
 static void _nego_send_ump(midi2d_interface_t* p_midi, const uint32_t* words, uint8_t count) {
   if (!_tx_opened(p_midi)) return;
   if (tu_fifo_remaining(&p_midi->ep_stream.tx.ff) < (uint32_t) count * 4) return;
@@ -383,6 +384,7 @@ static void _nego_handle_stream_msg(midi2d_interface_t* p_midi, const uint32_t* 
       break;
   }
 }
+#endif // !CFG_TUD_MIDI2_USER_RESPONDER
 
 static void _nego_process_rx(midi2d_interface_t* p_midi) {
 #if CFG_TUD_MIDI2_USER_RESPONDER
