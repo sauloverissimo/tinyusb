@@ -340,7 +340,9 @@ static void _nego_send_fb_info(midi2d_interface_t* p_midi, uint8_t fb_idx) {
          | ((uint32_t) STREAM_FB_INFO << 16)
          | (UINT32_C(1) << 15)
          | ((uint32_t) fb_idx << 8)
-         | 0x02;  // bDirection: bidirectional
+         | (UINT32_C(1) << 5)   // UI hint: sender    (bit 5)
+         | (UINT32_C(1) << 4)   // UI hint: receiver  (bit 4)
+         | 0x3;                 // bDirection: bidirectional (bits 1:0)
   msg[1] = ((uint32_t) 0 << 24)  // bFirstGroup
          | ((uint32_t) tud_midi2_num_groups_cb(_itf_idx(p_midi)) << 16);
   _nego_send_ump(p_midi, msg, 4);
