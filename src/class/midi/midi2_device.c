@@ -54,6 +54,28 @@ TU_ATTR_WEAK const char* tud_midi2_ep_name_cb(uint8_t itf) {
 TU_ATTR_WEAK const char* tud_midi2_product_id_cb(uint8_t itf) {
   (void) itf; return CFG_TUD_MIDI2_PRODUCT_ID;
 }
+TU_ATTR_WEAK tud_midi2_dir_t tud_midi2_direction_cb(uint8_t itf) {
+  (void) itf; return MIDI2_DIR_BIDIRECTIONAL;
+}
+
+// Map the per-instance direction to the GTB bGrpTrmBlkType field.
+static inline uint8_t _gtb_dir_type(tud_midi2_dir_t dir) {
+  switch (dir) {
+    case MIDI2_DIR_INPUT_ONLY:  return 0x01;  // input only
+    case MIDI2_DIR_OUTPUT_ONLY: return 0x02;  // output only
+    default:                    return 0x00;  // bidirectional
+  }
+}
+
+// Map the per-instance direction to the FB Info Notification low byte
+// (UI hint at bits 5:4, bDirection at bits 1:0).
+static inline uint8_t _fb_dir_byte(tud_midi2_dir_t dir) {
+  switch (dir) {
+    case MIDI2_DIR_INPUT_ONLY:  return 0x11;  // UI hint receiver | direction input
+    case MIDI2_DIR_OUTPUT_ONLY: return 0x22;  // UI hint sender   | direction output
+    default:                    return 0x33;  // UI hint both     | direction bidirectional
+  }
+}
 
 //--------------------------------------------------------------------+
 // Byte order note
@@ -146,8 +168,9 @@ TU_VERIFY_STATIC(CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS >= 1 && CFG_TUD_MIDI2_NUM_FUN
 
 static midi2d_interface_t _midi2d_itf[CFG_TUD_MIDI2];
 
-// Default Group Terminal Block descriptor (USB-MIDI 2.0 spec, Table 5-5/5-6)
-static const uint8_t _default_gtb_desc[] = {
+// Default Group Terminal Block descriptor (USB-MIDI 2.0 spec, Table 5-5/5-6).
+// bGrpTrmBlkType (index 9) is patched per request from tud_midi2_direction_cb.
+static uint8_t _default_gtb_desc[] = {
   // GTB Header (5 bytes)
   5,                                        // bLength
   MIDI2_CS_GRP_TRM_BLOCK,                   // bDescriptorType
@@ -159,7 +182,7 @@ static const uint8_t _default_gtb_desc[] = {
   MIDI2_CS_GRP_TRM_BLOCK,                   // bDescriptorType
   MIDI2_GRP_TRM_BLOCK_ENTRY,                // bDescriptorSubtype
   1,                                        // bGrpTrmBlkID
-  0x00,                                     // bGrpTrmBlkType: bidirectional
+  0x00,                                     // bGrpTrmBlkType: patched per direction cb
   0x00,                                     // nGroupTrm: first group (0)
   CFG_TUD_MIDI2_NUM_GROUPS,                 // nNumGroupTrm
   CFG_TUD_MIDI2_BLOCK_STRIDX,               // iBlockItem: string descriptor index (0 = none)
@@ -340,9 +363,7 @@ static void _nego_send_fb_info(midi2d_interface_t* p_midi, uint8_t fb_idx) {
          | ((uint32_t) STREAM_FB_INFO << 16)
          | (UINT32_C(1) << 15)
          | ((uint32_t) fb_idx << 8)
-         | (UINT32_C(1) << 5)   // UI hint: sender    (bit 5)
-         | (UINT32_C(1) << 4)   // UI hint: receiver  (bit 4)
-         | 0x3;                 // bDirection: bidirectional (bits 1:0)
+         | _fb_dir_byte(tud_midi2_direction_cb(_itf_idx(p_midi)));  // UI hint + bDirection
   msg[1] = ((uint32_t) 0 << 24)  // bFirstGroup
          | ((uint32_t) tud_midi2_num_groups_cb(_itf_idx(p_midi)) << 16);
   _nego_send_ump(p_midi, msg, 4);
@@ -720,11 +741,13 @@ bool midi2d_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_re
 
       if (tud_midi2_get_req_itf_cb(rhport, request)) return true;
 
+      _default_gtb_desc[9] = _gtb_dir_type(tud_midi2_direction_cb(idx));
+
       uint16_t len = request->wLength;
       if (len > sizeof(_default_gtb_desc)) {
         len = sizeof(_default_gtb_desc);
       }
-      tud_control_xfer(rhport, request, (void*)(uintptr_t) _default_gtb_desc, len);
+      tud_control_xfer(rhport, request, _default_gtb_desc, len);
       return true;
     }
 

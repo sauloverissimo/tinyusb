@@ -96,6 +96,17 @@ enum {
   MIDI_PROTOCOL_MIDI2 = 0x02,
 };
 
+// Function Block / Group Terminal Block direction (per instance). Drives both
+// the GTB bGrpTrmBlkType and the Function Block Info Notification. Naming is
+// from the block's point of view, matching the spec:
+//   INPUT_ONLY  = block receives (host to device); host shows a MIDI OUT port
+//   OUTPUT_ONLY = block transmits (device to host); host shows a MIDI IN port
+typedef enum {
+  MIDI2_DIR_BIDIRECTIONAL = 0,  // default
+  MIDI2_DIR_INPUT_ONLY,
+  MIDI2_DIR_OUTPUT_ONLY,
+} tud_midi2_dir_t;
+
 //--------------------------------------------------------------------+
 // Application Callback API (weak, optional)
 //--------------------------------------------------------------------+
@@ -108,6 +119,7 @@ uint8_t     tud_midi2_num_groups_cb(uint8_t itf);
 uint8_t     tud_midi2_num_function_blocks_cb(uint8_t itf);
 const char* tud_midi2_ep_name_cb(uint8_t itf);
 const char* tud_midi2_product_id_cb(uint8_t itf);
+tud_midi2_dir_t tud_midi2_direction_cb(uint8_t itf);
 
 //--------------------------------------------------------------------+
 // Application API (Multiple Interfaces)
